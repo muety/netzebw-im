@@ -4,7 +4,7 @@
 Usage:
     pip install httpx2
     # Credentials: NETZE_BW_EMAIL / NETZE_BW_PASSWORD env vars
-    ./netze_bw.py [--imid 504A93108B83002A55E6B6359E606BB3] [--start 2026-09-15] [--end 2026-10-16] [--imid 504A93108A83006A55E6B6359E606BA1]
+    ./netze_bw.py [--imid 504A93108B83002A55E6B6359E606BB3] [--start 2026-09-15] [--end 2026-10-16] [--imid 504A93108A83006A55E6B6359E606BA1] [--output out/data.csv]
 """
 
 import argparse
@@ -15,6 +15,7 @@ import json
 import os
 import re
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from urllib.parse import urljoin
 from zoneinfo import ZoneInfo
 
@@ -78,7 +79,7 @@ def find_meter(client: httpx2.Client) -> dict:
     return next(i for i in installations if i.get("type") == "IMS")
 
 
-def download_csv(client: httpx2.Client, meter_id: str, start: datetime, end: datetime) -> None:
+def download_csv(client: httpx2.Client, meter_id: str, start: datetime, end: datetime, out_path: str) -> None:
     r = client.get(
         f"{PORTAL}/bff/api/imsservice/v1/meters/{meter_id}/measurements/download",
         params={
@@ -88,9 +89,9 @@ def download_csv(client: httpx2.Client, meter_id: str, start: datetime, end: dat
         headers={"x-csrf": "1"},
     )
     r.raise_for_status()
-    out = f"{meter_id}.csv"
-    with open(out, "wb") as f:
-        f.write(r.content)
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(r.content)
     print(f"saved {out} ({len(r.content)} bytes)")
 
 
@@ -99,6 +100,7 @@ def main() -> None:
     parser.add_argument("--imid", help="measuring system (IMS) installation id or auto-discovered when omitted")
     parser.add_argument("--start", help="window start, YYYY-MM-DD or ISO datetime, naive times = Europe/Berlin (default: 30 days ago)")
     parser.add_argument("--end", help="window end, YYYY-MM-DD or ISO datetime, naive times = Europe/Berlin (default: now)")
+    parser.add_argument("-o", "--output", help="output CSV path (default: out/<start>_<end>.csv of the requested window)")
     args = parser.parse_args()
 
     email = os.environ.get("NETZE_BW_EMAIL") or input("email: ")
@@ -114,12 +116,10 @@ def main() -> None:
         print(f"meter: {meter_id} ({meter.get('meterId')}, {meter['address']['postalCode']} {meter['address']['city']})")
 
     now = datetime.now(TZ)
-    download_csv(
-        client,
-        meter_id,
-        parse_ts(args.start) if args.start else now - timedelta(days=30),
-        parse_ts(args.end) if args.end else now,
-    )
+    start = parse_ts(args.start) if args.start else now - timedelta(days=30)
+    end = parse_ts(args.end) if args.end else now
+    out = args.output or f"out/{start:%Y-%m-%d}_{end:%Y-%m-%d}.csv"
+    download_csv(client, meter_id, start, end, out)
 
 
 if __name__ == "__main__":
