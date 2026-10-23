@@ -4,7 +4,7 @@
 Usage:
     pip install httpx2
     # Credentials: NETZE_BW_EMAIL / NETZE_BW_PASSWORD env vars
-    ./netze_bw.py [--imid 504A93108B83002A55E6B6359E606BB3] [--start 2026-09-15] [--end 2026-10-16] [--imid 504A93108A83006A55E6B6359E606BA1] [--output out/data.csv]
+    ./download_csv.py [--imid 504A93108B83002A55E6B6359E606BB3] [--start 2026-09-15] [--end 2026-10-16] [--imid 504A93108A83006A55E6B6359E606BA1] [--output out/data.csv]
 """
 
 import argparse
