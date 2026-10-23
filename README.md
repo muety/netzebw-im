@@ -38,6 +38,18 @@ You may want to run this on regular basis as a cron job, e.g.:
 30 0 * * *    uv run download_csv.py
 ```
 
+## Systemd service / timer
+Alternative to a cron job, you may configure this as a systemd service and accompanying timer. Install it like so:
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp systemd/netzebw.{service,timer} ~/.config/systemd/user/
+# now edit the service file at ~/.config/systemd/user/netzebw.service to put your credentials as env vars
+systemctl --user daemon-reload
+systemctl --user enable --now netzebw.timer
+systemctl --user list-timers netzebw.timer
+```
+
 ## VictoriaMetrics ingest
 There's a second script `import_victoriametrics.py`, which allows to backfill the downloaded data into [VictoriaMetrics](https://victoriametrics.com) via its [CSV import endpoint](https://docs.victoriametrics.com/victoriametrics/#how-to-import-csv-data).
 

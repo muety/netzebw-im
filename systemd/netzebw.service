@@ -1,0 +1,11 @@
+[Unit]
+Description=Download Netze BW smart-meter CSV and ingest it into VictoriaMetrics
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/netzebw-im
+Environment=NETZE_BW_EMAIL=johndoe@example.org
+Environment=NETZE_BW_PASSWORD=yoursecretpassword
+Environment=VM_URL=http://localhost:8428
+ExecStart=%h/netzebw-im/.venv/bin/python download_csv.py
+ExecStart=%h/netzebw-im/.venv/bin/python import_victoriametrics.py

@@ -8,3 +8,5 @@ wheels/
 .zed
 *.csv
 out/**
+.env
+

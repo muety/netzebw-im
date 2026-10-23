@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily Netze BW meter download + VictoriaMetrics ingest
+
+[Timer]
+OnCalendar=*-*-* 00:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
