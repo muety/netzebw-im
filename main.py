@@ -14,12 +14,12 @@ import html
 import json
 import os
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urljoin
 from zoneinfo import ZoneInfo
 
-import httpx2  # Pydantic-maintained successor of httpx; same API, `import httpx2 as httpx` works too
+import httpx2
 
 PORTAL = "https://meine.netze-bw.de"
 AUTH0_DOMAIN = "login.netze-bw.de"
@@ -72,6 +72,10 @@ def parse_ts(value: str) -> datetime:
     return dt.astimezone(TZ)
 
 
+def midnight(d: date) -> datetime:
+    return datetime.combine(d, time.min, tzinfo=TZ)
+
+
 def find_meter(client: httpx2.Client) -> dict:
     r = client.get(f"{PORTAL}/bff/api/kuposervice/v1/portal/installations", headers={"x-csrf": "1"})
     r.raise_for_status()
@@ -98,8 +102,8 @@ def download_csv(client: httpx2.Client, meter_id: str, start: datetime, end: dat
 def main() -> None:
     parser = argparse.ArgumentParser(description="Download the Netze BW smart-meter measurements CSV.")
     parser.add_argument("--imid", help="measuring system (IMS) installation id or auto-discovered when omitted")
-    parser.add_argument("--start", help="window start, YYYY-MM-DD or ISO datetime, naive times = Europe/Berlin (default: 30 days ago)")
-    parser.add_argument("--end", help="window end, YYYY-MM-DD or ISO datetime, naive times = Europe/Berlin (default: now)")
+    parser.add_argument("--start", help="window start, YYYY-MM-DD or ISO datetime, naive times = Europe/Berlin (default: midnight starting yesterday)")
+    parser.add_argument("--end", help="window end, YYYY-MM-DD or ISO datetime, naive times = Europe/Berlin (default: last midnight = end of yesterday)")
     parser.add_argument("-o", "--output", help="output CSV path (default: out/<start>_<end>.csv of the requested window)")
     args = parser.parse_args()
 
@@ -115,9 +119,9 @@ def main() -> None:
         meter_id = meter["id"]
         print(f"meter: {meter_id} ({meter.get('meterId')}, {meter['address']['postalCode']} {meter['address']['city']})")
 
-    now = datetime.now(TZ)
-    start = parse_ts(args.start) if args.start else now - timedelta(days=30)
-    end = parse_ts(args.end) if args.end else now
+    today = datetime.now(TZ).date()
+    start = parse_ts(args.start) if args.start else midnight(today - timedelta(days=1))
+    end = parse_ts(args.end) if args.end else midnight(today)
     out = args.output or f"out/{start:%Y-%m-%d}_{end:%Y-%m-%d}.csv"
     download_csv(client, meter_id, start, end, out)
 
