@@ -16,6 +16,7 @@ import os
 import re
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urljoin
+from zoneinfo import ZoneInfo
 
 import httpx2  # Pydantic-maintained successor of httpx; same API, `import httpx2 as httpx` works too
 
@@ -23,7 +24,8 @@ PORTAL = "https://meine.netze-bw.de"
 AUTH0_DOMAIN = "login.netze-bw.de"
 CONNECTION = "Username-Password-Authentication"
 HEADERS = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:156.0) Gecko/20100101 Firefox/156.0"}
-API_TIME_FMT = "%Y-%m-%dT%H:%M:%S.000Z"
+TZ = ZoneInfo("Europe/Berlin")
+API_TIME_FMT = "%Y-%m-%dT%H:%M:%S.000Z"  # the API expects UTC
 
 
 def login(email: str, password: str) -> httpx2.Client:
@@ -65,8 +67,8 @@ def login(email: str, password: str) -> httpx2.Client:
 def parse_ts(value: str) -> datetime:
     dt = datetime.fromisoformat(value)
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        dt = dt.replace(tzinfo=TZ)
+    return dt.astimezone(TZ)
 
 
 def find_meter(client: httpx2.Client) -> dict:
@@ -79,7 +81,10 @@ def find_meter(client: httpx2.Client) -> dict:
 def download_csv(client: httpx2.Client, meter_id: str, start: datetime, end: datetime) -> None:
     r = client.get(
         f"{PORTAL}/bff/api/imsservice/v1/meters/{meter_id}/measurements/download",
-        params={"startDate": start.strftime(API_TIME_FMT), "endDate": end.strftime(API_TIME_FMT)},
+        params={
+            "startDate": start.astimezone(timezone.utc).strftime(API_TIME_FMT),
+            "endDate": end.astimezone(timezone.utc).strftime(API_TIME_FMT),
+        },
         headers={"x-csrf": "1"},
     )
     r.raise_for_status()
@@ -92,8 +97,8 @@ def download_csv(client: httpx2.Client, meter_id: str, start: datetime, end: dat
 def main() -> None:
     parser = argparse.ArgumentParser(description="Download the Netze BW smart-meter measurements CSV.")
     parser.add_argument("--imid", help="measuring system (IMS) installation id or auto-discovered when omitted")
-    parser.add_argument("--start", help="window start, YYYY-MM-DD or ISO datetime (default: 30 days ago)")
-    parser.add_argument("--end", help="window end, YYYY-MM-DD or ISO datetime (default: now)")
+    parser.add_argument("--start", help="window start, YYYY-MM-DD or ISO datetime, naive times = Europe/Berlin (default: 30 days ago)")
+    parser.add_argument("--end", help="window end, YYYY-MM-DD or ISO datetime, naive times = Europe/Berlin (default: now)")
     args = parser.parse_args()
 
     email = os.environ.get("NETZE_BW_EMAIL") or input("email: ")
@@ -108,7 +113,7 @@ def main() -> None:
         meter_id = meter["id"]
         print(f"meter: {meter_id} ({meter.get('meterId')}, {meter['address']['postalCode']} {meter['address']['city']})")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(TZ)
     download_csv(
         client,
         meter_id,
